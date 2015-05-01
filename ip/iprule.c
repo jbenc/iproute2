@@ -34,7 +34,7 @@ static void usage(void)
 {
 	fprintf(stderr, "Usage: ip rule [ list | add | del | flush ] SELECTOR ACTION\n");
 	fprintf(stderr, "SELECTOR := [ not ] [ from PREFIX ] [ to PREFIX ] [ tos TOS ] [ fwmark FWMARK[/MASK] ]\n");
-	fprintf(stderr, "            [ iif STRING ] [ oif STRING ] [ pref NUMBER ]\n");
+	fprintf(stderr, "            [ iif STRING ] [ oif STRING ] [ pref NUMBER ] [ tunnel-id ID ]\n");
 	fprintf(stderr, "ACTION := [ table TABLE_ID ]\n");
 	fprintf(stderr, "          [ prohibit | reject | unreachable ]\n");
 	fprintf(stderr, "          [ realms [SRCREALM/]DSTREALM ]\n");
@@ -147,6 +147,9 @@ int print_rule(const struct sockaddr_nl *who, struct nlmsghdr *n, void *arg)
 		if (r->rtm_flags & FIB_RULE_OIF_DETACHED)
 			fprintf(fp, "[detached] ");
 	}
+
+	if (tb[FRA_TUN_ID])
+		fprintf(fp, "tunnel-id 0x%llx ", rta_getattr_u64(tb[FRA_TUN_ID]));
 
 	table = rtm_get_table(r, tb);
 	if (table) {
@@ -348,6 +351,13 @@ static int iprule_modify(int cmd, int argc, char **argv)
 			fprintf(stderr, "Warning: route NAT is deprecated\n");
 			addattr32(&req.n, sizeof(req), RTA_GATEWAY, get_addr32(*argv));
 			req.r.rtm_type = RTN_NAT;
+		} else if (strcmp(*argv, "tunnel-id") == 0) {
+			__u64 tun_id;
+			NEXT_ARG();
+			if (get_u64(&tun_id, *argv, 0))
+				invarg("tunnel-id value is invalid\n", *argv);
+			/* FIXME: byte order */
+			addattr64(&req.n, sizeof(req), FRA_TUN_ID, tun_id);
 		} else {
 			int type;
 
