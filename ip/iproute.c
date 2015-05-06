@@ -24,6 +24,7 @@
 #include <arpa/inet.h>
 #include <linux/in_route.h>
 #include <linux/icmpv6.h>
+#include <linux/lwtunnel.h>
 #include <errno.h>
 
 #include "rt_names.h"
@@ -84,7 +85,8 @@ static void usage(void)
 	fprintf(stderr, "           [ ssthresh NUMBER ] [ realms REALM ] [ src ADDRESS ]\n");
 	fprintf(stderr, "           [ rto_min TIME ] [ hoplimit NUMBER ] [ initrwnd NUMBER ]\n");
 	fprintf(stderr, "           [ features FEATURES ] [ quickack BOOL ] [ congctl NAME ]\n");
-	fprintf(stderr, "           [ pref PREF ]\n");
+	fprintf(stderr, "           [ pref PREF ] [ tunnel TUNNEL ]\n");
+	fprintf(stderr, "TUNNEL :=  [ id ID ] [ dst ADDRESS ] [ ttl NUMBER ] [ tos TOS ] [ dport NUMBER ]\n");
 	fprintf(stderr, "TYPE := [ unicast | local | broadcast | multicast | throw |\n");
 	fprintf(stderr, "          unreachable | prohibit | blackhole | nat ]\n");
 	fprintf(stderr, "TABLE_ID := [ local | main | default | all | NUMBER ]\n");
@@ -309,6 +311,7 @@ int print_route(const struct sockaddr_nl *who, struct nlmsghdr *n, void *arg)
 	__u32 table;
 	SPRINT_BUF(b1);
 	static int hz;
+	__u32 encap_type = 0;
 
 	if (n->nlmsg_type != RTM_NEWROUTE && n->nlmsg_type != RTM_DELROUTE) {
 		fprintf(stderr, "Not a route: %08x %08x %08x\n",
@@ -401,6 +404,52 @@ int print_route(const struct sockaddr_nl *who, struct nlmsghdr *n, void *arg)
 	if (r->rtm_tos && filter.tosmask != -1) {
 		SPRINT_BUF(b1);
 		fprintf(fp, "tos %s ", rtnl_dsfield_n2a(r->rtm_tos, b1, sizeof(b1)));
+	}
+
+	if (tb[RTA_ENCAP_TYPE])
+		encap_type = rta_getattr_u32(tb[RTA_ENCAP_TYPE]);
+
+	if (tb[RTA_ENCAP] && encap_type) {
+		switch (encap_type) {
+		case LWTUNNEL_ENCAP_IP: {
+			struct rtattr *tun_info[IP_TUN_MAX+1];
+
+			fprintf(fp, "tunnel ");
+			parse_rtattr_nested(tun_info, IP_TUN_MAX, tb[RTA_ENCAP]);
+
+			if (tun_info[IP_TUN_ID])
+				fprintf(fp, "id %llu ", ntohll(rta_getattr_u64(tun_info[IP_TUN_ID])));
+
+			if (tun_info[IP_TUN_SRC])
+				fprintf(fp, "src %s ",
+					rt_addr_n2a(r->rtm_family,
+						    RTA_PAYLOAD(tun_info[IP_TUN_SRC]),
+						    RTA_DATA(tun_info[IP_TUN_SRC]),
+						    abuf, sizeof(abuf)));
+
+			if (tun_info[IP_TUN_DST])
+				fprintf(fp, "dst %s ",
+					rt_addr_n2a(r->rtm_family,
+						    RTA_PAYLOAD(tun_info[IP_TUN_DST]),
+						    RTA_DATA(tun_info[IP_TUN_DST]),
+						    abuf, sizeof(abuf)));
+
+			if (tun_info[IP_TUN_TTL])
+				fprintf(fp, "ttl %d ", rta_getattr_u8(tun_info[IP_TUN_TTL]));
+
+			if (tun_info[IP_TUN_TOS])
+				fprintf(fp, "tos %d ", rta_getattr_u8(tun_info[IP_TUN_TOS]));
+
+			if (tun_info[IP_TUN_SPORT])
+				fprintf(fp, "sport %d ",
+					ntohs(rta_getattr_u16(tun_info[IP_TUN_SPORT])));
+
+			if (tun_info[IP_TUN_DPORT])
+				fprintf(fp, "dport %d ",
+					ntohs(rta_getattr_u16(tun_info[IP_TUN_DPORT])));
+			}
+			break;
+		}
 	}
 
 	if (tb[RTA_GATEWAY] && filter.rvia.bitlen != host_len) {
@@ -790,6 +839,70 @@ static int parse_nexthops(struct nlmsghdr *n, struct rtmsg *r,
 	return 0;
 }
 
+static void parse_tunnel(struct nlmsghdr *nlh, size_t len, int *argc_,
+			 char ***argv_, int family)
+{
+	int id_ok = 0, dst_ok = 0, tos_ok = 0, ttl_ok = 0, dport_ok = 0;
+	struct rtattr *tunnel;
+	char **argv = *argv_;
+	int argc = *argc_;
+
+	addattr32(nlh, len, RTA_ENCAP_TYPE, LWTUNNEL_ENCAP_IP);
+
+	tunnel = addattr_nest(nlh, len, RTA_ENCAP);
+	while (argc > 0) {
+		if (strcmp(*argv, "id") == 0) {
+			__u64 id;
+			NEXT_ARG();
+			if (id_ok++)
+				duparg2("id", *argv);
+			if (get_u64(&id, *argv, 0))
+				invarg("\"id\" value is invalid\n", *argv);
+			addattr64(nlh, len, IP_TUN_ID, htonll(id));
+		} else if (strcmp(*argv, "dst") == 0) {
+			inet_prefix addr;
+			NEXT_ARG();
+			if (dst_ok++)
+				duparg2("dst", *argv);
+			get_addr(&addr, *argv, family);
+			addattr_l(nlh, len, IP_TUN_DST, &addr.data, addr.bytelen);
+		} else if (strcmp(*argv, "tos") == 0) {
+			__u32 tos;
+			NEXT_ARG();
+			if (tos_ok++)
+				duparg2("tos", *argv);
+			if (rtnl_dsfield_a2n(&tos, *argv))
+				invarg("\"tos\" value is invalid\n", *argv);
+			addattr8(nlh, len, IP_TUN_TOS, tos);
+		} else if (strcmp(*argv, "ttl") == 0) {
+			__u8 ttl;
+			NEXT_ARG();
+			if (ttl_ok++)
+				duparg2("ttl", *argv);
+			if (get_u8(&ttl, *argv, 0))
+				invarg("\"ttl\" value is invalid\n", *argv);
+			addattr8(nlh, len, IP_TUN_TTL, ttl);
+		} else if (strcmp(*argv, "dport") == 0) {
+			__u16 dport;
+			NEXT_ARG();
+			if (dport_ok++)
+				duparg2("dport", *argv);
+			if (get_u16(&dport, *argv, 0))
+				invarg("\"dport\" value is invalid\n", *argv);
+			addattr16(nlh, len, IP_TUN_DPORT, htons(dport));
+		} else {
+			break;
+		}
+
+		NEXT_ARG();
+	}
+
+	addattr_nest_end(nlh, tunnel);
+
+	*argc_ = argc;
+	*argv_ = argv;
+}
+
 static int iproute_modify(int cmd, unsigned flags, int argc, char **argv)
 {
 	struct {
@@ -1089,6 +1202,10 @@ static int iproute_modify(int cmd, unsigned flags, int argc, char **argv)
 			else if (get_u8(&pref, *argv, 0))
 				invarg("\"pref\" value is invalid\n", *argv);
 			addattr8(&req.n, sizeof(req), RTA_PREF, pref);
+		} else if (matches(*argv, "tunnel") == 0) {
+			NEXT_ARG();
+			parse_tunnel(&req.n, sizeof(req), &argc, &argv, req.r.rtm_family);
+			continue;
 		} else {
 			int type;
 			inet_prefix dst;
