@@ -407,7 +407,7 @@ int print_route(const struct sockaddr_nl *who, struct nlmsghdr *n, void *arg)
 	}
 
 	if (tb[RTA_ENCAP_TYPE])
-		encap_type = rta_getattr_u32(tb[RTA_ENCAP_TYPE]);
+		encap_type = rta_getattr_u16(tb[RTA_ENCAP_TYPE]);
 
 	if (tb[RTA_ENCAP] && encap_type) {
 		switch (encap_type) {
@@ -847,7 +847,7 @@ static void parse_tunnel(struct nlmsghdr *nlh, size_t len, int *argc_,
 	char **argv = *argv_;
 	int argc = *argc_;
 
-	addattr32(nlh, len, RTA_ENCAP_TYPE, LWTUNNEL_ENCAP_IP);
+	addattr16(nlh, len, RTA_ENCAP_TYPE, LWTUNNEL_ENCAP_IP);
 
 	tunnel = addattr_nest(nlh, len, RTA_ENCAP);
 	while (argc > 0) {
