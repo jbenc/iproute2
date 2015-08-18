@@ -412,41 +412,41 @@ int print_route(const struct sockaddr_nl *who, struct nlmsghdr *n, void *arg)
 	if (tb[RTA_ENCAP] && encap_type) {
 		switch (encap_type) {
 		case LWTUNNEL_ENCAP_IP: {
-			struct rtattr *tun_info[IP_TUN_MAX+1];
+			struct rtattr *tun_info[LWTUNNEL_IP_MAX+1];
 
 			fprintf(fp, "tunnel ");
-			parse_rtattr_nested(tun_info, IP_TUN_MAX, tb[RTA_ENCAP]);
+			parse_rtattr_nested(tun_info, LWTUNNEL_IP_MAX, tb[RTA_ENCAP]);
 
-			if (tun_info[IP_TUN_ID])
-				fprintf(fp, "id %llu ", ntohll(rta_getattr_u64(tun_info[IP_TUN_ID])));
+			if (tun_info[LWTUNNEL_IP_ID])
+				fprintf(fp, "id %llu ", ntohll(rta_getattr_u64(tun_info[LWTUNNEL_IP_ID])));
 
-			if (tun_info[IP_TUN_SRC])
+			if (tun_info[LWTUNNEL_IP_SRC])
 				fprintf(fp, "src %s ",
 					rt_addr_n2a(r->rtm_family,
-						    RTA_PAYLOAD(tun_info[IP_TUN_SRC]),
-						    RTA_DATA(tun_info[IP_TUN_SRC]),
+						    RTA_PAYLOAD(tun_info[LWTUNNEL_IP_SRC]),
+						    RTA_DATA(tun_info[LWTUNNEL_IP_SRC]),
 						    abuf, sizeof(abuf)));
 
-			if (tun_info[IP_TUN_DST])
+			if (tun_info[LWTUNNEL_IP_DST])
 				fprintf(fp, "dst %s ",
 					rt_addr_n2a(r->rtm_family,
-						    RTA_PAYLOAD(tun_info[IP_TUN_DST]),
-						    RTA_DATA(tun_info[IP_TUN_DST]),
+						    RTA_PAYLOAD(tun_info[LWTUNNEL_IP_DST]),
+						    RTA_DATA(tun_info[LWTUNNEL_IP_DST]),
 						    abuf, sizeof(abuf)));
 
-			if (tun_info[IP_TUN_TTL])
-				fprintf(fp, "ttl %d ", rta_getattr_u8(tun_info[IP_TUN_TTL]));
+			if (tun_info[LWTUNNEL_IP_TTL])
+				fprintf(fp, "ttl %d ", rta_getattr_u8(tun_info[LWTUNNEL_IP_TTL]));
 
-			if (tun_info[IP_TUN_TOS])
-				fprintf(fp, "tos %d ", rta_getattr_u8(tun_info[IP_TUN_TOS]));
+			if (tun_info[LWTUNNEL_IP_TOS])
+				fprintf(fp, "tos %d ", rta_getattr_u8(tun_info[LWTUNNEL_IP_TOS]));
 
-			if (tun_info[IP_TUN_SPORT])
+			if (tun_info[LWTUNNEL_IP_SPORT])
 				fprintf(fp, "sport %d ",
-					ntohs(rta_getattr_u16(tun_info[IP_TUN_SPORT])));
+					ntohs(rta_getattr_u16(tun_info[LWTUNNEL_IP_SPORT])));
 
-			if (tun_info[IP_TUN_DPORT])
+			if (tun_info[LWTUNNEL_IP_DPORT])
 				fprintf(fp, "dport %d ",
-					ntohs(rta_getattr_u16(tun_info[IP_TUN_DPORT])));
+					ntohs(rta_getattr_u16(tun_info[LWTUNNEL_IP_DPORT])));
 			}
 			break;
 		}
@@ -858,14 +858,14 @@ static void parse_tunnel(struct nlmsghdr *nlh, size_t len, int *argc_,
 				duparg2("id", *argv);
 			if (get_u64(&id, *argv, 0))
 				invarg("\"id\" value is invalid\n", *argv);
-			addattr64(nlh, len, IP_TUN_ID, htonll(id));
+			addattr64(nlh, len, LWTUNNEL_IP_ID, htonll(id));
 		} else if (strcmp(*argv, "dst") == 0) {
 			inet_prefix addr;
 			NEXT_ARG();
 			if (dst_ok++)
 				duparg2("dst", *argv);
 			get_addr(&addr, *argv, family);
-			addattr_l(nlh, len, IP_TUN_DST, &addr.data, addr.bytelen);
+			addattr_l(nlh, len, LWTUNNEL_IP_DST, &addr.data, addr.bytelen);
 		} else if (strcmp(*argv, "tos") == 0) {
 			__u32 tos;
 			NEXT_ARG();
@@ -873,7 +873,7 @@ static void parse_tunnel(struct nlmsghdr *nlh, size_t len, int *argc_,
 				duparg2("tos", *argv);
 			if (rtnl_dsfield_a2n(&tos, *argv))
 				invarg("\"tos\" value is invalid\n", *argv);
-			addattr8(nlh, len, IP_TUN_TOS, tos);
+			addattr8(nlh, len, LWTUNNEL_IP_TOS, tos);
 		} else if (strcmp(*argv, "ttl") == 0) {
 			__u8 ttl;
 			NEXT_ARG();
@@ -881,7 +881,7 @@ static void parse_tunnel(struct nlmsghdr *nlh, size_t len, int *argc_,
 				duparg2("ttl", *argv);
 			if (get_u8(&ttl, *argv, 0))
 				invarg("\"ttl\" value is invalid\n", *argv);
-			addattr8(nlh, len, IP_TUN_TTL, ttl);
+			addattr8(nlh, len, LWTUNNEL_IP_TTL, ttl);
 		} else if (strcmp(*argv, "dport") == 0) {
 			__u16 dport;
 			NEXT_ARG();
@@ -889,7 +889,7 @@ static void parse_tunnel(struct nlmsghdr *nlh, size_t len, int *argc_,
 				duparg2("dport", *argv);
 			if (get_u16(&dport, *argv, 0))
 				invarg("\"dport\" value is invalid\n", *argv);
-			addattr16(nlh, len, IP_TUN_DPORT, htons(dport));
+			addattr16(nlh, len, LWTUNNEL_IP_DPORT, htons(dport));
 		} else {
 			break;
 		}

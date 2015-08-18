@@ -283,20 +283,6 @@ enum rt_class_t {
 	RT_TABLE_MAX=0xFFFFFFFF
 };
 
-enum ip_tunnel_t {
-	IP_TUN_UNSPEC,
-	IP_TUN_ID,
-	IP_TUN_DST,
-	IP_TUN_SRC,
-	IP_TUN_TTL,
-	IP_TUN_TOS,
-	IP_TUN_SPORT,
-	IP_TUN_DPORT,
-	IP_TUN_FLAGS,
-	__IP_TUN_MAX,
-};
-
-#define IP_TUN_MAX (__IP_TUN_MAX - 1)
 
 /* Routing message attributes */
 

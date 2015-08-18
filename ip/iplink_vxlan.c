@@ -262,7 +262,7 @@ static int vxlan_parse_opt(struct link_util *lu, int argc, char **argv,
 	addattr8(n, 1024, IFLA_VXLAN_UDP_CSUM, udpcsum);
 	addattr8(n, 1024, IFLA_VXLAN_UDP_ZERO_CSUM6_TX, udp6zerocsumtx);
 	addattr8(n, 1024, IFLA_VXLAN_UDP_ZERO_CSUM6_RX, udp6zerocsumrx);
-	addattr8(n, 1024, IFLA_VXLAN_FLOWBASED, flowbased);
+	addattr8(n, 1024, IFLA_VXLAN_COLLECT_METADATA, flowbased);
 
 	if (noage)
 		addattr32(n, 1024, IFLA_VXLAN_AGEING, 0);
@@ -403,7 +403,8 @@ static void vxlan_print_opt(struct link_util *lu, FILE *f, struct rtattr *tb[])
 	if (tb[IFLA_VXLAN_UDP_CSUM] && rta_getattr_u8(tb[IFLA_VXLAN_UDP_CSUM]))
 		fputs("udpcsum ", f);
 
-	if (tb[IFLA_VXLAN_FLOWBASED] && rta_getattr_u8(tb[IFLA_VXLAN_FLOWBASED]))
+	if (tb[IFLA_VXLAN_COLLECT_METADATA] &&
+	    rta_getattr_u8(tb[IFLA_VXLAN_COLLECT_METADATA]))
 		fputs("flowbased ", f);
 
 	if (tb[IFLA_VXLAN_UDP_ZERO_CSUM6_TX] &&
