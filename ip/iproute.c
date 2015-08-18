@@ -930,7 +930,7 @@ static void parse_tunnel(struct nlmsghdr *nlh, size_t len, int *argc_,
 			break;
 		}
 
-		NEXT_ARG();
+		argc--; argv++;
 	}
 
 	addattr_nest_end(nlh, tunnel);
