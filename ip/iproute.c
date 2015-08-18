@@ -449,6 +449,41 @@ int print_route(const struct sockaddr_nl *who, struct nlmsghdr *n, void *arg)
 					ntohs(rta_getattr_u16(tun_info[LWTUNNEL_IP_DPORT])));
 			}
 			break;
+		case LWTUNNEL_ENCAP_IP6: {
+			struct rtattr *tun_info[LWTUNNEL_IP6_MAX+1];
+
+			fprintf(fp, "tunnel ");
+			parse_rtattr_nested(tun_info, LWTUNNEL_IP6_MAX, tb[RTA_ENCAP]);
+
+			if (tun_info[LWTUNNEL_IP6_ID])
+				fprintf(fp, "id %llu ", ntohll(rta_getattr_u64(tun_info[LWTUNNEL_IP6_ID])));
+
+			if (tun_info[LWTUNNEL_IP6_SRC])
+				fprintf(fp, "src %s ",
+					rt_addr_n2a(r->rtm_family,
+						    RTA_PAYLOAD(tun_info[LWTUNNEL_IP6_SRC]),
+						    RTA_DATA(tun_info[LWTUNNEL_IP6_SRC]),
+						    abuf, sizeof(abuf)));
+
+			if (tun_info[LWTUNNEL_IP6_DST])
+				fprintf(fp, "dst %s ",
+					rt_addr_n2a(r->rtm_family,
+						    RTA_PAYLOAD(tun_info[LWTUNNEL_IP6_DST]),
+						    RTA_DATA(tun_info[LWTUNNEL_IP6_DST]),
+						    abuf, sizeof(abuf)));
+
+			if (tun_info[LWTUNNEL_IP6_HOPLIMIT])
+				fprintf(fp, "hoplimit %d ", rta_getattr_u8(tun_info[LWTUNNEL_IP6_HOPLIMIT]));
+
+			if (tun_info[LWTUNNEL_IP6_SPORT])
+				fprintf(fp, "sport %d ",
+					ntohs(rta_getattr_u16(tun_info[LWTUNNEL_IP6_SPORT])));
+
+			if (tun_info[LWTUNNEL_IP6_DPORT])
+				fprintf(fp, "dport %d ",
+					ntohs(rta_getattr_u16(tun_info[LWTUNNEL_IP6_DPORT])));
+			}
+			break;
 		}
 	}
 
@@ -847,7 +882,8 @@ static void parse_tunnel(struct nlmsghdr *nlh, size_t len, int *argc_,
 	char **argv = *argv_;
 	int argc = *argc_;
 
-	addattr16(nlh, len, RTA_ENCAP_TYPE, LWTUNNEL_ENCAP_IP);
+	addattr16(nlh, len, RTA_ENCAP_TYPE,
+		  family == AF_INET ? LWTUNNEL_ENCAP_IP : LWTUNNEL_ENCAP_IP6);
 
 	tunnel = addattr_nest(nlh, len, RTA_ENCAP);
 	while (argc > 0) {
@@ -857,7 +893,7 @@ static void parse_tunnel(struct nlmsghdr *nlh, size_t len, int *argc_,
 			if (id_ok++)
 				duparg2("id", *argv);
 			if (get_u64(&id, *argv, 0))
-				invarg("\"id\" value is invalid\n", *argv);
+				invarg("value is invalid\n", *argv);
 			addattr64(nlh, len, LWTUNNEL_IP_ID, htonll(id));
 		} else if (strcmp(*argv, "dst") == 0) {
 			inet_prefix addr;
@@ -872,15 +908,15 @@ static void parse_tunnel(struct nlmsghdr *nlh, size_t len, int *argc_,
 			if (tos_ok++)
 				duparg2("tos", *argv);
 			if (rtnl_dsfield_a2n(&tos, *argv))
-				invarg("\"tos\" value is invalid\n", *argv);
+				invarg("value is invalid\n", *argv);
 			addattr8(nlh, len, LWTUNNEL_IP_TOS, tos);
-		} else if (strcmp(*argv, "ttl") == 0) {
+		} else if (strcmp(*argv, "ttl") == 0 || strcmp(*argv, "hoplimit")) {
 			__u8 ttl;
 			NEXT_ARG();
 			if (ttl_ok++)
 				duparg2("ttl", *argv);
 			if (get_u8(&ttl, *argv, 0))
-				invarg("\"ttl\" value is invalid\n", *argv);
+				invarg("value is invalid\n", *argv);
 			addattr8(nlh, len, LWTUNNEL_IP_TTL, ttl);
 		} else if (strcmp(*argv, "dport") == 0) {
 			__u16 dport;
@@ -888,7 +924,7 @@ static void parse_tunnel(struct nlmsghdr *nlh, size_t len, int *argc_,
 			if (dport_ok++)
 				duparg2("dport", *argv);
 			if (get_u16(&dport, *argv, 0))
-				invarg("\"dport\" value is invalid\n", *argv);
+				invarg("value is invalid\n", *argv);
 			addattr16(nlh, len, LWTUNNEL_IP_DPORT, htons(dport));
 		} else {
 			break;
