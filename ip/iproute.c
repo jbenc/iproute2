@@ -422,14 +422,14 @@ int print_route(const struct sockaddr_nl *who, struct nlmsghdr *n, void *arg)
 
 			if (tun_info[LWTUNNEL_IP_SRC])
 				fprintf(fp, "src %s ",
-					rt_addr_n2a(r->rtm_family,
+					rt_addr_n2a(AF_INET,
 						    RTA_PAYLOAD(tun_info[LWTUNNEL_IP_SRC]),
 						    RTA_DATA(tun_info[LWTUNNEL_IP_SRC]),
 						    abuf, sizeof(abuf)));
 
 			if (tun_info[LWTUNNEL_IP_DST])
 				fprintf(fp, "dst %s ",
-					rt_addr_n2a(r->rtm_family,
+					rt_addr_n2a(AF_INET,
 						    RTA_PAYLOAD(tun_info[LWTUNNEL_IP_DST]),
 						    RTA_DATA(tun_info[LWTUNNEL_IP_DST]),
 						    abuf, sizeof(abuf)));
@@ -460,14 +460,14 @@ int print_route(const struct sockaddr_nl *who, struct nlmsghdr *n, void *arg)
 
 			if (tun_info[LWTUNNEL_IP6_SRC])
 				fprintf(fp, "src %s ",
-					rt_addr_n2a(r->rtm_family,
+					rt_addr_n2a(AF_INET6,
 						    RTA_PAYLOAD(tun_info[LWTUNNEL_IP6_SRC]),
 						    RTA_DATA(tun_info[LWTUNNEL_IP6_SRC]),
 						    abuf, sizeof(abuf)));
 
 			if (tun_info[LWTUNNEL_IP6_DST])
 				fprintf(fp, "dst %s ",
-					rt_addr_n2a(r->rtm_family,
+					rt_addr_n2a(AF_INET6,
 						    RTA_PAYLOAD(tun_info[LWTUNNEL_IP6_DST]),
 						    RTA_DATA(tun_info[LWTUNNEL_IP6_DST]),
 						    abuf, sizeof(abuf)));
@@ -875,15 +875,18 @@ static int parse_nexthops(struct nlmsghdr *n, struct rtmsg *r,
 }
 
 static void parse_tunnel(struct nlmsghdr *nlh, size_t len, int *argc_,
-			 char ***argv_, int family)
+			 char ***argv_)
 {
 	int id_ok = 0, dst_ok = 0, tos_ok = 0, ttl_ok = 0, dport_ok = 0;
 	struct rtattr *tunnel;
 	char **argv = *argv_;
 	int argc = *argc_;
+	struct rtattr *rta_encap;
+	int family = AF_UNSPEC;
+	__u16 encap;
 
-	addattr16(nlh, len, RTA_ENCAP_TYPE,
-		  family == AF_INET ? LWTUNNEL_ENCAP_IP : LWTUNNEL_ENCAP_IP6);
+	rta_encap = NLMSG_TAIL(nlh);
+	addattr16(nlh, len, RTA_ENCAP_TYPE, 0);
 
 	tunnel = addattr_nest(nlh, len, RTA_ENCAP);
 	while (argc > 0) {
@@ -901,6 +904,7 @@ static void parse_tunnel(struct nlmsghdr *nlh, size_t len, int *argc_,
 			if (dst_ok++)
 				duparg2("dst", *argv);
 			get_addr(&addr, *argv, family);
+			family = addr.family;
 			addattr_l(nlh, len, LWTUNNEL_IP_DST, &addr.data, addr.bytelen);
 		} else if (strcmp(*argv, "tos") == 0) {
 			__u32 tos;
@@ -934,6 +938,12 @@ static void parse_tunnel(struct nlmsghdr *nlh, size_t len, int *argc_,
 	}
 
 	addattr_nest_end(nlh, tunnel);
+
+	if (family == AF_UNSPEC)
+		missarg("dst");
+
+	encap = family == AF_INET ? LWTUNNEL_ENCAP_IP : LWTUNNEL_ENCAP_IP6;
+	memcpy(RTA_DATA(rta_encap), &encap, sizeof(encap));
 
 	*argc_ = argc;
 	*argv_ = argv;
@@ -1240,7 +1250,7 @@ static int iproute_modify(int cmd, unsigned flags, int argc, char **argv)
 			addattr8(&req.n, sizeof(req), RTA_PREF, pref);
 		} else if (matches(*argv, "tunnel") == 0) {
 			NEXT_ARG();
-			parse_tunnel(&req.n, sizeof(req), &argc, &argv, req.r.rtm_family);
+			parse_tunnel(&req.n, sizeof(req), &argc, &argv);
 			continue;
 		} else {
 			int type;
