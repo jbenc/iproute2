@@ -215,7 +215,12 @@ static int vxlan_parse_opt(struct link_util *lu, int argc, char **argv,
 		argc--, argv++;
 	}
 
-	if (!vni_set) {
+	if (flowbased && vni_set) {
+		fprintf(stderr, "vxlan: both flowbased and vni cannot be specified\n");
+		return -1;
+	}
+
+	if (!flowbased && !vni_set) {
 		fprintf(stderr, "vxlan: missing virtual network identifier\n");
 		return -1;
 	}
