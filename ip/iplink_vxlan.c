@@ -73,6 +73,7 @@ static int vxlan_parse_opt(struct link_util *lu, int argc, char **argv,
 	__u8 flowbased = 0;
 	int dst_port_set = 0;
 	struct ifla_vxlan_port_range range = { 0, 0 };
+	bool family_set = false;
 
 	while (argc > 0) {
 		if (!matches(*argv, "id") ||
@@ -241,19 +242,36 @@ static int vxlan_parse_opt(struct link_util *lu, int argc, char **argv,
 	}
 
 	addattr32(n, 1024, IFLA_VXLAN_ID, vni);
-	if (gaddr)
+	if (gaddr) {
 		addattr_l(n, 1024, IFLA_VXLAN_GROUP, &gaddr, 4);
-	else if (daddr)
+		family_set = true;
+	} else if (daddr) {
 		addattr_l(n, 1024, IFLA_VXLAN_GROUP, &daddr, 4);
-	if (memcmp(&gaddr6, &in6addr_any, sizeof(gaddr6)) != 0)
+		family_set = true;
+	}
+	if (memcmp(&gaddr6, &in6addr_any, sizeof(gaddr6)) != 0) {
 		addattr_l(n, 1024, IFLA_VXLAN_GROUP6, &gaddr6, sizeof(struct in6_addr));
-	else if (memcmp(&daddr6, &in6addr_any, sizeof(daddr6)) != 0)
+		family_set = true;
+	} else if (memcmp(&daddr6, &in6addr_any, sizeof(daddr6)) != 0) {
 		addattr_l(n, 1024, IFLA_VXLAN_GROUP6, &daddr6, sizeof(struct in6_addr));
+		family_set = true;
+	}
 
-	if (saddr)
+	if (saddr) {
 		addattr_l(n, 1024, IFLA_VXLAN_LOCAL, &saddr, 4);
-	else if (memcmp(&saddr6, &in6addr_any, sizeof(saddr6)) != 0)
+		family_set = true;
+	} else if (memcmp(&saddr6, &in6addr_any, sizeof(saddr6)) != 0) {
 		addattr_l(n, 1024, IFLA_VXLAN_LOCAL6, &saddr6, sizeof(struct in6_addr));
+		family_set = true;
+	}
+
+	if (!family_set && preferred_family == AF_INET6) {
+		/* The kernel treats vxlan as IPv4, unless there's an IPv6
+		 * address supplied in the config. If we don't have any
+		 * address to pass to the kernel, pass an empty one.
+		 */
+		addattr_l(n, 1024, IFLA_VXLAN_GROUP6, &gaddr6, sizeof(struct in6_addr));
+	}
 
 	if (link)
 		addattr32(n, 1024, IFLA_VXLAN_LINK, link);
