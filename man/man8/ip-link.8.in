@@ -423,6 +423,7 @@ the following additional arguments are supported:
 .RI " ] [ " "[no]external"
 .R " ] [ "
 .B gbp
+.RB "] [ " gpe " | " gpel3
 .R " ]"
 
 .in +8
@@ -559,6 +560,16 @@ Example:
   iptables -A OUTPUT [...] -j MARK --set-mark 0x800FF
 
 .in -4
+
+.sp
+.B gpe
+- enables the Generic Protocol extension (VXLAN-GPE) in L2 mode, i.e. with
+whole Ethernet frame encapsulated.
+
+.sp
+.B gpel3
+- enables the Generic Protocol extension (VXLAN-GPE) in L3 mode, i.e. with
+IPv4 and IPv6 packets encapsulated in VXLAN directly.
 
 .in -8
 

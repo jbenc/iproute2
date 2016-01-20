@@ -31,7 +31,7 @@ static void print_explain(FILE *f)
 	fprintf(f, "                 [ ageing SECONDS ] [ maxaddress NUMBER ]\n");
 	fprintf(f, "                 [ [no]udpcsum ] [ [no]udp6zerocsumtx ] [ [no]udp6zerocsumrx ]\n");
 	fprintf(f, "                 [ [no]remcsumtx ] [ [no]remcsumrx ]\n");
-	fprintf(f, "                 [ [no]external ] [ gbp ]\n");
+	fprintf(f, "                 [ [no]external ] [ gbp ] [ gpe[l3] ]\n");
 	fprintf(f, "\n");
 	fprintf(f, "Where: VNI := 0-16777215\n");
 	fprintf(f, "       ADDR := { IP_ADDRESS | any }\n");
@@ -74,6 +74,7 @@ static int vxlan_parse_opt(struct link_util *lu, int argc, char **argv,
 	__u8 remcsumrx = 0;
 	__u8 metadata = 0;
 	__u8 gbp = 0;
+	__u8 gpe = 0;
 	int dst_port_set = 0;
 	struct ifla_vxlan_port_range range = { 0, 0 };
 
@@ -218,6 +219,10 @@ static int vxlan_parse_opt(struct link_util *lu, int argc, char **argv,
 			metadata = 0;
 		} else if (!matches(*argv, "gbp")) {
 			gbp = 1;
+		} else if (!matches(*argv, "gpe")) {
+			gpe = VXLAN_GPE_MODE_L2;
+		} else if (!matches(*argv, "gpel3")) {
+			gpe = VXLAN_GPE_MODE_L3;
 		} else if (matches(*argv, "help") == 0) {
 			explain();
 			return -1;
@@ -246,7 +251,9 @@ static int vxlan_parse_opt(struct link_util *lu, int argc, char **argv,
 		return -1;
 	}
 
-	if (!dst_port_set) {
+	if (!dst_port_set && gpe) {
+		dstport = 4790;
+	} else if (!dst_port_set) {
 		fprintf(stderr, "vxlan: destination port not specified\n"
 			"Will use Linux kernel default (non-standard value)\n");
 		fprintf(stderr,
@@ -299,6 +306,8 @@ static int vxlan_parse_opt(struct link_util *lu, int argc, char **argv,
 
 	if (gbp)
 		addattr_l(n, 1024, IFLA_VXLAN_GBP, NULL, 0);
+	if (gpe)
+		addattr8(n, 1024, IFLA_VXLAN_GPE_MODE, gpe);
 
 
 	return 0;
@@ -446,6 +455,14 @@ static void vxlan_print_opt(struct link_util *lu, FILE *f, struct rtattr *tb[])
 
 	if (tb[IFLA_VXLAN_GBP])
 		fputs("gbp ", f);
+	if (tb[IFLA_VXLAN_GPE_MODE]) {
+		__u8 gpe = rta_getattr_u8(tb[IFLA_VXLAN_GPE_MODE]);
+
+		if (gpe == VXLAN_GPE_MODE_L2)
+			fputs("gpe ", f);
+		else if (gpe == VXLAN_GPE_MODE_L3)
+			fputs("gpel3 ", f);
+	}
 }
 
 static void vxlan_print_help(struct link_util *lu, int argc, char **argv,
